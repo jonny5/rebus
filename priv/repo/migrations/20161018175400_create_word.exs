@@ -11,5 +11,8 @@ defmodule Rebus.Repo.Migrations.CreateWord do
       timestamps()
     end
 
+    create index(:words, [:pronunciation_length])
+    create index(:words, [:pronunciation])
+    create index(:words, [:name])
   end
 end

@@ -9,3 +9,11 @@
 #
 # We recommend using the bang functions (`insert!`, `update!`
 # and so on) as they will fail if something goes wrong.
+
+require DictionaryLineProcessor
+
+IO.puts "started seed words"
+  File.stream!("files/cmudict2.txt", [:utf8]) |> Enum.each(fn line ->
+    DictionaryLineProcessor.process(line)
+  end)
+IO.puts "completed seed words"
