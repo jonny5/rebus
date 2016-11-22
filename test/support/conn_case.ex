@@ -26,6 +26,7 @@ defmodule Rebus.ConnCase do
       import Ecto.Query
 
       import Rebus.Router.Helpers
+      import Rebus.Factory
 
       # The default endpoint for testing
       @endpoint Rebus.Endpoint
