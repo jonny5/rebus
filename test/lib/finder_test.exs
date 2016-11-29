@@ -17,13 +17,13 @@ defmodule Rebus.RebusFinderTest do
     fire = insert(:word, %{name: "fire", pronunciation: "F AY R F AY T ER", pronunciation_length: 7} )
     fighter = insert(:word, %{name: "fighter", pronunciation: "F AY R F AY T ER", pronunciation_length: 7} )
 
-    # response = Rebus.Finder.process(firefighter)
-    # assert(WordNode.print(response) == "(fire + fighter)")
+    response = Rebus.Finder.process(firefighter)
+    assert(WordNode.print(response) == "(fire + fighter)")
 
-    response = Rebus.Finder.process(fire)
-    assert(WordNode.print(response) == "(firefighter - fighter)")
-
-    response = Rebus.Finder.process(fighter)
-    assert(WordNode.print(response) == "(firefighter - fire)")
+    # response = Rebus.Finder.process(fire)
+    # assert(WordNode.print(response) == "(firefighter - fighter)")
+    #
+    # response = Rebus.Finder.process(fighter)
+    # assert(WordNode.print(response) == "(firefighter - fire)")
   end
 end
