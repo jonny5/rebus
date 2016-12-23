@@ -22,30 +22,28 @@ defmodule Rebus.Finder do
     %{ parent_node | children: process_node(parent_node) }
   end
 
+  # def process_node({word_id: _}) do input end
+
   def process_node(word_node) do
-    if word_node.word_id do
-      word_node
-    else
-      matching_word_node = find_contained_word(word_node)
-      remainders = word_node.remainder.split(matching_word_node.remainder)
-      first_remainder = remainders
-      |> List.first
-      |> String.trim
-      if String.length(first_remainder) > 0 do
-        node = process_node(%WordNode{word_id: find_word(first_remainder).id, parent: word_node, remainder: first_remainder})
-        List.insert_at(children, 0, node)
-      end
-
-      second_remainder = remainders
-      |> List.last
-      |> String.trim
-      if String.length(second_remainder) > 0 do
-        node = process_node(%WordNode{word_id: find_word(second_remainder).id, parent: word_node, remainder: second_remainder})
-        List.insert_at(children, 2, node)
-      end
-
-      %{ word_node | children: children, operator: "+" }
+    matching_word_node = find_contained_word_node(word_node)
+    remainders = word_node.remainder.split(matching_word_node.remainder)
+    first_remainder = remainders
+    |> List.first
+    |> String.trim
+    if String.length(first_remainder) > 0 do
+      node = process_node(%WordNode{word_id: find_word(first_remainder).id, parent: word_node, remainder: first_remainder})
+      List.insert_at(children, 0, node)
     end
+
+    second_remainder = remainders
+    |> List.last
+    |> String.trim
+    if String.length(second_remainder) > 0 do
+      node = process_node(%WordNode{word_id: find_word(second_remainder).id, parent: word_node, remainder: second_remainder})
+      List.insert_at(children, 2, node)
+    end
+
+    %{ word_node | children: children, operator: "+" }
   end
 
   def find_contained_word_node(word_node) do
