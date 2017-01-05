@@ -1,0 +1,12 @@
+
+Input:
+  - remainder
+  - no children
+Output:
+  WordNode w/ children and no remainder
+
+Input:
+  - remainder: nil
+  - children present
+Output:
+  Process children with remainder and no children

@@ -1,5 +1,7 @@
+require IEx
+
 defmodule Rebus.WordNode do
-  defstruct [:remainder, :operator, :word_id, :children, :parent]
+  defstruct [:remainder, :operator, :name, :children, :depth]
 
   def print(node) do
     cond do
@@ -7,52 +9,114 @@ defmodule Rebus.WordNode do
         responses = Enum.map(node.children, fn(child) -> print(child) end)
         elements = Enum.join(responses, " #{node.operator} ")
         "(#{elements})"
-      node.word ->
-        node.word
+      node.name ->
+        node.name
+      node.remainder ->
+        node.remainder
     end
   end
 end
 
 defmodule Rebus.Finder do
   import Ecto.Query
-  alias Rebus.{Word, Repo, WordNode, WordTree}
+  alias Rebus.{Word, Repo, WordNode}
 
   def process(input_word) do
-    parent_node = %WordNode{word_id: nil, operator: nil, parent: nil, remainder: input_word.pronunciation  }
-    %{ parent_node | children: process_node(parent_node) }
+    parent_node = %WordNode{name: input_word.name, operator: nil, depth: 0, remainder: input_word.pronunciation, children: nil}
+
+    process_node(parent_node)
   end
 
-  # def process_node({word_id: _}) do input end
+  def process_node(%WordNode{name: name, depth: depth} = node) when name != nil and depth != 0 do
+    node
+  end
+  # give up after 5
+  def process_node(%WordNode{depth: 5} = node) do node end
+  def process_node(%WordNode{remainder: nil} = node) do node end
 
-  def process_node(word_node) do
-    matching_word_node = find_contained_word_node(word_node)
-    remainders = word_node.remainder.split(matching_word_node.remainder)
-    first_remainder = remainders
-    |> List.first
-    |> String.trim
-    if String.length(first_remainder) > 0 do
-      node = process_node(%WordNode{word_id: find_word(first_remainder).id, parent: word_node, remainder: first_remainder})
-      List.insert_at(children, 0, node)
+  def process_node(%WordNode{remainder: remainder, depth: depth} = word_node) do
+    found_word = find_word(remainder)
+
+    if (depth != 0 && found_word) do
+      process_node(%{ word_node | name: found_word.name, remainder: nil, depth: (depth + 1) })
+    else
+      inner_word = find_inner_word(word_node)
+      if inner_word && inner_word.name do
+        matching_node = %WordNode{remainder: nil, name: inner_word.name}
+        remainders = String.split(remainder, inner_word.pronunciation)
+
+        first_remainder = node_from_remainder(remainders, &List.first/1)
+        second_remainder = node_from_remainder(remainders, &List.last/1)
+
+        children = [first_remainder, matching_node, second_remainder]
+        |> Enum.filter(fn(child) -> child end)
+        |> Enum.map(fn(child) -> process_node( %{ child | depth: (depth + 1) } )   end)
+
+        process_node(%{ word_node | children: children, depth: (depth + 1), operator: "+", remainder: nil })
+      else
+        outer_word = find_outer_word(word_node)
+        if outer_word && outer_word.name do
+          matching_node = %WordNode{remainder: nil, name: outer_word.name}
+          remainders = String.split(outer_word.pronunciation, remainder)
+
+          first_remainder = node_from_remainder(remainders, &List.first/1)
+          second_remainder = node_from_remainder(remainders, &List.last/1)
+
+          children = [matching_node, first_remainder, second_remainder]
+          |> Enum.filter(fn(child) -> child end)
+          |> Enum.map(fn(child) -> process_node( %{ child | depth: (depth + 1) } )   end)
+
+          process_node(%{ word_node | children: children, depth: (depth + 1), operator: "-", remainder: nil })
+        else
+          process_node(%{ word_node | depth: 5 })
+        end
+      end
     end
-
-    second_remainder = remainders
-    |> List.last
-    |> String.trim
-    if String.length(second_remainder) > 0 do
-      node = process_node(%WordNode{word_id: find_word(second_remainder).id, parent: word_node, remainder: second_remainder})
-      List.insert_at(children, 2, node)
-    end
-
-    %{ word_node | children: children, operator: "+" }
   end
 
-  def find_contained_word_node(word_node) do
-    response = Repo.one(
-                  from word in Word,
-                  where: word.id != ^input_word.id and fragment("(?) ~ (?)", word.pronunciation, ^pronunciation),
-                  limit: 1
-               )
-    %WordNode{word_id: response.id, parent: word_node, remainder: response.pronunciation}
+  def node_from_remainder(remainders, fun) do
+    remainder = fun.(remainders)
+    |> String.trim
+
+    if String.length(remainder) > 0 do
+      %WordNode{remainder: remainder}
+    end
+  end
+
+  def find_inner_word(%WordNode{name: name, remainder: remainder}) when name != nil do
+    Repo.one(
+      from word in Word,
+      where: word.name != ^name and word.pronunciation != ^remainder and fragment("(?) ~ (?)", ^remainder, word.pronunciation),
+      order_by: fragment("similarity(?, ?) DESC", word.pronunciation, ^remainder),
+      limit: 1
+    )
+  end
+
+  def find_inner_word(%WordNode{remainder: remainder}) do
+    Repo.one(
+      from word in Word,
+      where: word.pronunciation != ^remainder and fragment("(?) ~ (?)", ^remainder, word.pronunciation),
+      order_by: fragment("similarity(?, ?) DESC", word.pronunciation, ^remainder),
+      limit: 1
+    )
+  end
+
+  def find_outer_word(%WordNode{name: name, remainder: remainder}) when name != nil do
+    Repo.one(
+      from word in Word,
+      where: word.name != ^name and word.pronunciation != ^remainder and fragment("(?) ~ (?)", word.pronunciation, ^remainder),
+      order_by: fragment("similarity(?, ?) DESC", word.pronunciation, ^remainder),
+      limit: 1
+    )
+  end
+
+  def find_outer_word(%WordNode{remainder: remainder}) do
+    Repo.one(
+      from word in Word,
+      where: word.pronunciation != ^remainder and fragment("(?) ~ (?)", word.pronunciation, ^remainder),
+      order_by: fragment("similarity(?, ?) DESC", word.pronunciation, ^remainder),
+      limit: 1
+    )
   end
 
   def find_word(pronunciation) do

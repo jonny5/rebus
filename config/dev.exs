@@ -41,3 +41,5 @@ config :rebus, Rebus.Repo,
   database: "rebus_dev",
   hostname: "localhost",
   pool_size: 10
+
+config :tirexs, :uri, "http://127.0.0.1:9200"

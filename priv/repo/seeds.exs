@@ -13,7 +13,7 @@
 require DictionaryLineProcessor
 
 IO.puts "started seed words"
-  File.stream!("files/cmudict2.txt", [:utf8]) |> Enum.each(fn line ->
+  File.stream!("files/cmudict.txt", [:utf8]) |> Enum.each(fn line ->
     DictionaryLineProcessor.process(line)
   end)
 IO.puts "completed seed words"

@@ -1,7 +1,7 @@
 defmodule Rebus.Repo.Migrations.CreateWord do
   use Ecto.Migration
 
-  def change do
+  def up do
     create table(:words) do
       add :name, :string
       add :pronunciation, :string
@@ -10,9 +10,17 @@ defmodule Rebus.Repo.Migrations.CreateWord do
 
       timestamps()
     end
+    execute "CREATE extension if not exists pg_trgm;"
+    execute "CREATE INDEX word_pronunciation_trgm_index ON words USING gin(pronunciation gin_trgm_ops);"
 
     create index(:words, [:pronunciation_length])
-    create index(:words, [:pronunciation])
     create index(:words, [:name])
+  end
+
+  def down do
+    execute "DROP INDEX word_pronunciation_trgm_index;"
+    drop index(:words, [:pronunciation_length])
+    drop index(:words, [:name])
+    drop table(:words)
   end
 end
