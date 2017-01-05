@@ -17,6 +17,29 @@ defmodule Rebus.WordNode do
   end
 end
 
+defmodule Rebus.WordNodeSearch do
+  def search(%{name: name, pronunciation: pronunciation, pronunciation_length: nil}) do
+    query = search [index: "rebus"] do
+      query do
+        bool do
+          must do
+            match_phrase "pronunciation", remainder
+          end
+          must_not do
+            term "name", name
+          end
+          must_not do
+            term "pronunciation", remainder
+          end
+        end
+      end
+    end
+
+    {_, _, response} = Tirexs.Query.create_resource(query)
+    List.first(response.hits.hits)
+  end
+end
+
 defmodule Rebus.Finder do
   import Ecto.Query
   alias Rebus.{Word, Repo, WordNode}
