@@ -3,17 +3,25 @@ put("/rebus/words/1", [name: "Tree", pronunciation: "TR IY"])
 
 import Tirexs.Search
 
-query = search [index: "rebus"] do
-  query do
-    bool do
-      must do
-        match_phrase "pronunciation", "TR IY"
-      end
-      filter do
-        term "name", "tree"
-      end
+defmodule Fart do
+  def test do
+    if (true), do: (must do: match_phrase "pronunciation", "TR E IY")
     end
   end
 end
 
-Tirexs.Query.create_resource(query)
+[
+  index: "rebus",
+  search: [
+    query: [
+      bool: [
+        must: [
+          [ match_phrase: [ pronunciation: "TR E IY"] ]
+        ],
+        filter: [
+          term: [ name: "tree"]
+        ]
+      ]
+    ]
+  ]
+]

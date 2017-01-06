@@ -18,31 +18,65 @@ defmodule Rebus.WordNode do
 end
 
 defmodule Rebus.WordNodeSearch do
-  def search(%{name: name, pronunciation: pronunciation, pronunciation_length: nil}) do
-    query = search [index: "rebus"] do
-      query do
-        bool do
-          must do
-            match_phrase "pronunciation", remainder
-          end
-          must_not do
-            term "name", name
-          end
-          must_not do
-            term "pronunciation", remainder
-          end
-        end
-      end
-    end
+  alias Rebus.WordNode
 
-    {_, _, response} = Tirexs.Query.create_resource(query)
-    List.first(response.hits.hits)
+  def search(word_node) do
+    word_node
+    |> search_params
+    |> elastic_search
   end
+
+  def search_params(%WordNode{name: name, remainder: remainder} = word_node, params \\ []) do
+    cond do
+      name ->
+        search_params(%{ word_node | name: nil }, name_params(name) ++ params)
+      remainder ->
+        search_params(%{ word_node | remainder: nil }, remainder_params(remainder) ++ params)
+      true ->
+        params
+    end
+  end
+
+  def name_params(name) do
+    [ must_not: [ term: [ name: name ] ] ]
+  end
+
+  def remainder_params(remainder) do
+    [
+      must: [
+        [ match_phrase: [ pronunciation: remainder] ]
+      ],
+      must_not: [
+        [ term: [ pronunciation_length: remainder |> String.split |> Enum.count] ]
+      ],
+    ]
+  end
+
+  def elastic_search(bool_params) do
+    query = [
+      index: "rebus",
+      search: [
+        query: [
+          bool: bool_params
+        ]
+      ]
+    ]
+    IO.inspect(process_query(query))
+    process_query(query)
+  end
+
+  def process_query(query) do
+    {_, _, response} = Tirexs.Query.create_resource(query)
+    response.hits.hits |> List.first |> response_source
+  end
+
+  def response_source(nil), do: nil
+  def response_source(hit), do: hit._source
 end
 
 defmodule Rebus.Finder do
   import Ecto.Query
-  alias Rebus.{Word, Repo, WordNode}
+  alias Rebus.{Word, Repo, WordNode, WordNodeSearch, StringSubsets}
 
   def process(input_word) do
     parent_node = %WordNode{name: input_word.name, operator: nil, depth: 0, remainder: input_word.pronunciation, children: nil}
@@ -77,7 +111,7 @@ defmodule Rebus.Finder do
 
         process_node(%{ word_node | children: children, depth: (depth + 1), operator: "+", remainder: nil })
       else
-        outer_word = find_outer_word(word_node)
+        outer_word = WordNodeSearch.search(word_node)
         if outer_word && outer_word.name do
           matching_node = %WordNode{remainder: nil, name: outer_word.name}
           remainders = String.split(outer_word.pronunciation, remainder)
@@ -106,40 +140,25 @@ defmodule Rebus.Finder do
     end
   end
 
-  def find_inner_word(%WordNode{name: name, remainder: remainder}) when name != nil do
-    Repo.one(
-      from word in Word,
-      where: word.name != ^name and word.pronunciation != ^remainder and fragment("(?) ~ (?)", ^remainder, word.pronunciation),
-      order_by: fragment("similarity(?, ?) DESC", word.pronunciation, ^remainder),
-      limit: 1
-    )
-  end
-
   def find_inner_word(%WordNode{remainder: remainder}) do
-    Repo.one(
-      from word in Word,
-      where: word.pronunciation != ^remainder and fragment("(?) ~ (?)", ^remainder, word.pronunciation),
-      order_by: fragment("similarity(?, ?) DESC", word.pronunciation, ^remainder),
-      limit: 1
-    )
+    [_ | terms] = StringSubsets.compute(remainder)
+    find_inner_word(terms, remainder |> String.split |> Enum.count )
   end
 
-  def find_outer_word(%WordNode{name: name, remainder: remainder}) when name != nil do
-    Repo.one(
-      from word in Word,
-      where: word.name != ^name and word.pronunciation != ^remainder and fragment("(?) ~ (?)", word.pronunciation, ^remainder),
-      order_by: fragment("similarity(?, ?) DESC", word.pronunciation, ^remainder),
-      limit: 1
-    )
+  def find_inner_word([], _) do
+    nil
   end
 
-  def find_outer_word(%WordNode{remainder: remainder}) do
-    Repo.one(
-      from word in Word,
-      where: word.pronunciation != ^remainder and fragment("(?) ~ (?)", word.pronunciation, ^remainder),
-      order_by: fragment("similarity(?, ?) DESC", word.pronunciation, ^remainder),
-      limit: 1
-    )
+  def find_inner_word(terms, length) do
+    [ head | tail ] = terms
+
+    response = find_word(head)
+    cond do
+      response ->
+        response
+      true ->
+        find_inner_word(tail, length)
+    end
   end
 
   def find_word(pronunciation) do
