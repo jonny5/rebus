@@ -21,6 +21,7 @@ defmodule Rebus.WordNodeSearch do
   alias Rebus.WordNode
 
   def search(word_node) do
+
     word_node
     |> search_params
     |> elastic_search
@@ -61,7 +62,6 @@ defmodule Rebus.WordNodeSearch do
         ]
       ]
     ]
-    IO.inspect(process_query(query))
     process_query(query)
   end
 
@@ -97,43 +97,44 @@ defmodule Rebus.Finder do
     if (depth != 0 && found_word) do
       process_node(%{ word_node | name: found_word.name, remainder: nil, depth: (depth + 1) })
     else
-      inner_word = find_inner_word(word_node)
-      if inner_word && inner_word.name do
-        matching_node = %WordNode{remainder: nil, name: inner_word.name}
-        remainders = String.split(remainder, inner_word.pronunciation)
-
-        first_remainder = node_from_remainder(remainders, &List.first/1)
-        second_remainder = node_from_remainder(remainders, &List.last/1)
-
-        children = [first_remainder, matching_node, second_remainder]
-        |> Enum.filter(fn(child) -> child end)
-        |> Enum.map(fn(child) -> process_node( %{ child | depth: (depth + 1) } )   end)
-
-        process_node(%{ word_node | children: children, depth: (depth + 1), operator: "+", remainder: nil })
-      else
-        outer_word = WordNodeSearch.search(word_node)
-        if outer_word && outer_word.name do
-          matching_node = %WordNode{remainder: nil, name: outer_word.name}
-          remainders = String.split(outer_word.pronunciation, remainder)
-
-          first_remainder = node_from_remainder(remainders, &List.first/1)
-          second_remainder = node_from_remainder(remainders, &List.last/1)
-
-          children = [matching_node, first_remainder, second_remainder]
-          |> Enum.filter(fn(child) -> child end)
-          |> Enum.map(fn(child) -> process_node( %{ child | depth: (depth + 1) } )   end)
-
-          process_node(%{ word_node | children: children, depth: (depth + 1), operator: "-", remainder: nil })
-        else
+      case find_next_node(word_node) do
+        {:fail, _} ->
           process_node(%{ word_node | depth: 5 })
-        end
+        {operator, next_node} ->
+          process_node(%{ word_node | children: node_siblings(next_node, operator, remainder, depth), depth: (depth + 1), operator: operator, remainder: nil })
       end
     end
   end
 
-  def node_from_remainder(remainders, fun) do
-    remainder = fun.(remainders)
-    |> String.trim
+  def find_next_node(word_node) do
+    find_next_node(word_node, '+')
+  end
+
+  def find_next_node(word_node, operator) do
+    case(operator) do
+      '+' ->
+        inner_node = find_inner_word(word_node)
+        if inner_node && inner_node.name, do: {operator, inner_node}, else: find_next_node(word_node, '-')
+      '-' ->
+         outer_node = WordNodeSearch.search(word_node)
+         if outer_node && outer_node.name, do: {operator, outer_node}, else: find_next_node(word_node, nil)
+      nil ->
+        {:fail, nil}
+    end
+  end
+
+  def node_siblings(word_node, remainder, depth) do
+    matching_node = %WordNode{remainder: nil, name: word_node.name}
+    [first, second] = if String.length(remainder) > String.length(word_node.pronunciation), do: [remainder, word_node.pronunciation], else: [word_node. pronunciation, remainder]
+    [left, right] = String.split(first, second, parts: 2)
+
+    [node_from_remainder(left), matching_node, node_from_remainder(right)]
+    |> Enum.filter(fn(child) -> child end)
+    |> Enum.map(fn(child) -> process_node( %{ child | depth: (depth + 1) } )   end)
+  end
+
+  def node_from_remainder(value) do
+    remainder = String.trim(value)
 
     if String.length(remainder) > 0 do
       %WordNode{remainder: remainder}
@@ -142,14 +143,14 @@ defmodule Rebus.Finder do
 
   def find_inner_word(%WordNode{remainder: remainder}) do
     [_ | terms] = StringSubsets.compute(remainder)
-    find_inner_word(terms, remainder |> String.split |> Enum.count )
+    find_inner_word(terms)
   end
 
-  def find_inner_word([], _) do
+  def find_inner_word([]) do
     nil
   end
 
-  def find_inner_word(terms, length) do
+  def find_inner_word(terms) do
     [ head | tail ] = terms
 
     response = find_word(head)
@@ -157,7 +158,7 @@ defmodule Rebus.Finder do
       response ->
         response
       true ->
-        find_inner_word(tail, length)
+        find_inner_word(tail)
     end
   end
 
