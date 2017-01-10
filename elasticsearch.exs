@@ -10,7 +10,7 @@ defmodule Fart do
   end
 end
 
-[
+query = [
   index: "rebus",
   search: [
     query: [

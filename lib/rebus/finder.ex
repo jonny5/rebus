@@ -17,63 +17,6 @@ defmodule Rebus.WordNode do
   end
 end
 
-defmodule Rebus.WordNodeSearch do
-  alias Rebus.WordNode
-
-  def search(word_node) do
-
-    word_node
-    |> search_params
-    |> elastic_search
-  end
-
-  def search_params(%WordNode{name: name, remainder: remainder} = word_node, params \\ []) do
-    cond do
-      name ->
-        search_params(%{ word_node | name: nil }, name_params(name) ++ params)
-      remainder ->
-        search_params(%{ word_node | remainder: nil }, remainder_params(remainder) ++ params)
-      true ->
-        params
-    end
-  end
-
-  def name_params(name) do
-    [ must_not: [ term: [ name: name ] ] ]
-  end
-
-  def remainder_params(remainder) do
-    [
-      must: [
-        [ match_phrase: [ pronunciation: remainder] ]
-      ],
-      must_not: [
-        [ term: [ pronunciation_length: remainder |> String.split |> Enum.count] ]
-      ],
-    ]
-  end
-
-  def elastic_search(bool_params) do
-    query = [
-      index: "rebus",
-      search: [
-        query: [
-          bool: bool_params
-        ]
-      ]
-    ]
-    process_query(query)
-  end
-
-  def process_query(query) do
-    {_, _, response} = Tirexs.Query.create_resource(query)
-    response.hits.hits |> List.first |> response_source
-  end
-
-  def response_source(nil), do: nil
-  def response_source(hit), do: hit._source
-end
-
 defmodule Rebus.Finder do
   import Ecto.Query
   alias Rebus.{Word, Repo, WordNode, WordNodeSearch, StringSubsets}
@@ -92,17 +35,20 @@ defmodule Rebus.Finder do
   def process_node(%WordNode{remainder: nil} = node) do node end
 
   def process_node(%WordNode{remainder: remainder, depth: depth} = word_node) do
-    found_word = find_word(remainder)
-
-    if (depth != 0 && found_word) do
-      process_node(%{ word_node | name: found_word.name, remainder: nil, depth: (depth + 1) })
-    else
-      case find_next_node(word_node) do
-        {:fail, _} ->
-          process_node(%{ word_node | depth: 5 })
-        {operator, next_node} ->
-          process_node(%{ word_node | children: node_siblings(next_node, operator, remainder, depth), depth: (depth + 1), operator: operator, remainder: nil })
-      end
+    found_word = find_common_word(remainder)
+    remainder_length = remainder |> String.split(" ") |> length
+    cond do
+      found_word && depth != 0 ->
+        process_node(%{ word_node | name: found_word.name, remainder: nil, depth: (depth + 1) })
+      remainder_length == 1 ->
+        process_node(%{ word_node | name: remainder, remainder: nil, depth: (depth + 1) })
+      true ->
+        case find_next_node(word_node) do
+          {:fail, _} ->
+            process_node(%{ word_node | depth: 5 })
+          {operator, next_node} ->
+            process_node(%{ word_node | children: node_siblings(next_node,  remainder, depth), depth: (depth + 1), operator: operator, remainder: nil })
+        end
     end
   end
 
@@ -116,7 +62,7 @@ defmodule Rebus.Finder do
         inner_node = find_inner_word(word_node)
         if inner_node && inner_node.name, do: {operator, inner_node}, else: find_next_node(word_node, '-')
       '-' ->
-         outer_node = WordNodeSearch.search(word_node)
+         outer_node = find_outer_word(word_node)
          if outer_node && outer_node.name, do: {operator, outer_node}, else: find_next_node(word_node, nil)
       nil ->
         {:fail, nil}
@@ -142,6 +88,7 @@ defmodule Rebus.Finder do
   end
 
   def find_inner_word(%WordNode{remainder: remainder}) do
+    # remove first element which will be the remainder value
     [_ | terms] = StringSubsets.compute(remainder)
     find_inner_word(terms)
   end
@@ -153,13 +100,29 @@ defmodule Rebus.Finder do
   def find_inner_word(terms) do
     [ head | tail ] = terms
 
-    response = find_word(head)
+    response = find_common_word(head)
     cond do
       response ->
         response
       true ->
         find_inner_word(tail)
     end
+  end
+
+  def find_outer_word(%WordNode{remainder: remainder}) do
+    Repo.one(
+      from word in Word,
+      where: ilike(word.pronunciation, ^"#{remainder} %") and word.has_image == true,
+      limit: 1
+    )
+  end
+
+  def find_common_word(pronunciation) do
+    Repo.one(
+      from word in Word,
+      where: word.pronunciation == ^pronunciation and word.has_image == true,
+      limit: 1
+    )
   end
 
   def find_word(pronunciation) do

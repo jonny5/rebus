@@ -3,7 +3,7 @@ alias Rebus.{Word, Repo, WordNode}
 
 word = Rebus.Repo.one(
   from word in Word,
-  where: word.name == "notebook",
+  where: word.name == "giraffe",
   limit: 1
 )
 
