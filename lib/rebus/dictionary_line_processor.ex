@@ -15,7 +15,6 @@ defmodule DictionaryLineProcessor do
 
     has_image = if common_words[name], do: true, else: false
     word = process_word(name, pronunciation, pronunciation_length, has_image)
-    put("/rebus/words/#{word.id}", [name: name, pronunciation: pronunciation, pronunciation_length: pronunciation_length, has_image: has_image ])
   end
 
   def process_word(name, pronunciation, pronunciation_length, has_image) do

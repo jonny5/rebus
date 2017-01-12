@@ -21,11 +21,10 @@ defmodule CommonWords do
 end
 
 IO.puts "started seed words"
+
 common_words_list = CommonWords.compute
 File.stream!("files/cmudict.txt", [:utf8]) |> Enum.each(fn line ->
   DictionaryLineProcessor.process(line, common_words_list)
 end)
-
-
 
 IO.puts "completed seed words"

@@ -2,7 +2,10 @@ require IEx
 
 defmodule Rebus.WordNode do
   defstruct [:remainder, :operator, :name, :children, :depth]
-
+  def print(nodes) when is_list(nodes) do
+    nodes |>
+    Enum.map(&print/1)
+  end
   def print(node) do
     cond do
       node.children ->
@@ -21,7 +24,23 @@ defmodule Rebus.Finder do
   import Ecto.Query
   alias Rebus.{Word, Repo, WordNode, WordNodeSearch, StringSubsets}
 
-  def process(input_word) do
+  def process(nil) do nil end
+  def process(input_word) when is_binary(input_word) do
+    input_word |> String.split(" ") |> process
+  end
+  def process(words) when is_list(words) do
+    Enum.map(
+      words,
+      fn(word_value) ->
+        Rebus.Repo.one(
+          from word in Word,
+          where: word.name == ^word_value,
+          limit: 1
+        ) |> process
+      end
+    )
+  end
+  def process(%Word{} = input_word) do
     parent_node = %WordNode{name: input_word.name, operator: nil, depth: 0, remainder: input_word.pronunciation, children: nil}
 
     process_node(parent_node)
@@ -90,7 +109,7 @@ defmodule Rebus.Finder do
   def find_inner_word(%WordNode{remainder: remainder}) do
     # remove first element which will be the remainder value
     [_ | terms] = StringSubsets.compute(remainder)
-    find_inner_word(terms)
+    find_inner_word(terms |> Enum.shuffle)
   end
 
   def find_inner_word([]) do
@@ -110,12 +129,17 @@ defmodule Rebus.Finder do
   end
 
   def find_outer_word(%WordNode{remainder: remainder}) do
-    Repo.one(
+    response = Repo.all(
       from word in Word,
       where: ilike(word.pronunciation, ^"#{remainder} %") and word.has_image == true,
       limit: 1
     )
+
+    outer_word_response(response)
   end
+
+  def outer_word_response([]) do nil end
+  def outer_word_response(list) do list |> Enum.random end
 
   def find_common_word(pronunciation) do
     Repo.one(
