@@ -22,7 +22,7 @@ end
 
 defmodule Rebus.Finder do
   import Ecto.Query
-  alias Rebus.{Word, Repo, WordNode, WordNodeSearch, StringSubsets}
+  alias Rebus.{Word, Repo, WordNode, StringSubsets}
 
   def process(nil) do nil end
   def process(input_word) when is_binary(input_word) do
@@ -52,7 +52,6 @@ defmodule Rebus.Finder do
   # give up after 5
   def process_node(%WordNode{depth: 5} = node) do node end
   def process_node(%WordNode{remainder: nil} = node) do node end
-
   def process_node(%WordNode{remainder: remainder, depth: depth} = word_node) do
     found_word = find_common_word(remainder)
     remainder_length = remainder |> String.split(" ") |> length
@@ -62,27 +61,23 @@ defmodule Rebus.Finder do
       remainder_length == 1 ->
         process_node(%{ word_node | name: remainder, remainder: nil, depth: (depth + 1) })
       true ->
-        case find_next_node(word_node) do
+        case process_node(word_node, '+') do
           {:fail, _} ->
             process_node(%{ word_node | depth: 5 })
           {operator, next_node} ->
-            process_node(%{ word_node | children: node_siblings(next_node,  remainder, depth), depth: (depth + 1), operator: operator, remainder: nil })
+            process_node(%{ word_node | children: node_siblings(next_node, remainder, depth), depth: (depth + 1), operator: operator, remainder: nil })
         end
     end
   end
 
-  def find_next_node(word_node) do
-    find_next_node(word_node, '+')
-  end
-
-  def find_next_node(word_node, operator) do
+  def process_node(word_node, operator) do
     case(operator) do
       '+' ->
         inner_node = find_inner_word(word_node)
-        if inner_node && inner_node.name, do: {operator, inner_node}, else: find_next_node(word_node, '-')
-      '-' ->
-         outer_node = find_outer_word(word_node)
-         if outer_node && outer_node.name, do: {operator, outer_node}, else: find_next_node(word_node, nil)
+        if inner_node && inner_node.name, do: {operator, inner_node}, else: process_node(word_node, nil)
+      # '-' ->
+      #    outer_node = find_outer_word(word_node)
+      #    if outer_node && outer_node.name, do: {operator, outer_node}, else: process_node(word_node, nil)
       nil ->
         {:fail, nil}
     end
@@ -90,7 +85,7 @@ defmodule Rebus.Finder do
 
   def node_siblings(word_node, remainder, depth) do
     matching_node = %WordNode{remainder: nil, name: word_node.name}
-    [first, second] = if String.length(remainder) > String.length(word_node.pronunciation), do: [remainder, word_node.pronunciation], else: [word_node. pronunciation, remainder]
+    [first, second] = if String.length(remainder) > String.length(word_node.pronunciation), do: [remainder, word_node.pronunciation], else: [word_node.pronunciation, remainder]
     [left, right] = String.split(first, second, parts: 2)
 
     [node_from_remainder(left), matching_node, node_from_remainder(right)]
@@ -129,31 +124,20 @@ defmodule Rebus.Finder do
   end
 
   def find_outer_word(%WordNode{remainder: remainder}) do
-    response = Repo.all(
+    Repo.all(
       from word in Word,
-      where: ilike(word.pronunciation, ^"#{remainder} %") and word.has_image == true,
-      limit: 1
-    )
-
-    outer_word_response(response)
+      where: ilike(word.pronunciation, ^"#{remainder} %") or ilike(word.pronunciation, ^"% #{remainder}")
+    ) |> word_response
   end
-
-  def outer_word_response([]) do nil end
-  def outer_word_response(list) do list |> Enum.random end
 
   def find_common_word(pronunciation) do
-    Repo.one(
+    Repo.all(
       from word in Word,
-      where: word.pronunciation == ^pronunciation and word.has_image == true,
-      limit: 1
+      where: word.pronunciation == ^pronunciation and word.has_image == true
     )
+    |> word_response
   end
 
-  def find_word(pronunciation) do
-    Repo.one(
-      from word in Word,
-      where: word.pronunciation == ^pronunciation,
-      limit: 1
-    )
-  end
+  def word_response([]) do nil end
+  def word_response(list) do list |> Enum.random end
 end
