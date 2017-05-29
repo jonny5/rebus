@@ -84,7 +84,7 @@ defmodule Rebus.Finder do
   def find_inner_word(%WordNode{remainder: remainder}) do
     # remove first element which will be the remainder value
     [_ | terms] = StringSubsets.compute(remainder)
-    find_inner_word(terms |> Enum.shuffle)
+    find_inner_word(terms)
   end
 
   def find_inner_word([]) do

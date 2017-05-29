@@ -9,7 +9,7 @@ defmodule Rebus.WordNode do
       node.children ->
         responses = Enum.map(node.children, fn(child) -> print(child) end)
         elements = Enum.join(responses, " #{node.operator} ")
-        "(#{elements})"
+        "#{elements}"
       node.name ->
         node.name
       node.remainder ->

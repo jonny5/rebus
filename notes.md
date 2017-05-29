@@ -1,0 +1,15 @@
+- adding price quote field, after design consultation done
+- shipping address info
+- add description to tailor
+- convert dates
+- add alerts around updating when it will send email
+- remove due_date from sketch
+- change date formatting
+- Change notes link url -> bride folder link()
+  - production_completed_at -> factory_shipped_at
+- Hide show button
+- move resend confirmation email to Overview
+- Add status under title
+- Move todos outside of tabs
+- add fabric_swatch_details to preproduction tab under fabric_sent_at
+- make name clickable
