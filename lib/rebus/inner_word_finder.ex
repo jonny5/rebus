@@ -3,86 +3,53 @@ defmodule Rebus.InnerWordFinder do
   alias Rebus.{Word, Repo, WordNode, StringSubsets}
 
   def process(text) do
-    node = text |> word |> word_to_node
-    %{ node | children: children(node.remainder, 1), remainder: nil, operator: "+" }
+    text
   end
 
-  def word(text) do
+  def find_word(text) do
+    find_word(text, 0, [])
+  end
+
+  def find_word(text, index, words) do
+    IO.puts text
+    IO.puts index
+
+
+    string_array = String.split(text)
+    pronunciation_length = length(string_array)
+    IO.puts "LENGTHS"
+    IO.puts index
+    IO.puts pronunciation_length
+    if index + 1 < pronunciation_length do
+      found_word = word_from_pronunciation(text, index)
+
+      if found_word do
+        # remainder = string_array |> Enum.slice(index + 1..pronunciation_length) |> Enum.join(" ")
+        # IO.puts "REMAINDER"
+        # IO.puts remainder
+        find_word(text, index+1, words ++ [found_word])
+      else
+        find_word(text, index+1, words)
+      end
+    else
+      words
+    end
+  end
+
+  def word_from_pronunciation(pronunciation, index) when is_list(pronunciation) do
+    pronunciation |> Enum.slice(0..index) |> Enum.join(" ") |> find_word_by_pronunciation
+  end
+
+  def word_from_pronunciation(pronunciation, index) when is_binary(pronunciation) do
+    pronunciation |> String.split |> Enum.slice(0..index) |> Enum.join(" ") |> find_word_by_pronunciation
+  end
+
+
+  def find_word_by_pronunciation(pronunciation) do
     Rebus.Repo.one(
       from word in Word,
-      where: word.name == ^text,
+      where: word.pronunciation == ^pronunciation,
       limit: 1
     )
-  end
-
-  def children(_, 3) do
-    []
-  end
-
-  def children(remainder, depth) do
-    # remove first element which will be the root value
-    [_ | terms] = StringSubsets.compute(remainder)
-    response = find_inner_word(terms)
-    cond do
-      response ->
-        response |> word_to_node(depth) |> node_siblings(remainder)
-      true ->
-        []
-    end
-  end
-
-  def find_inner_word([]) do
-    nil
-  end
-
-  def find_inner_word(terms) do
-    [ term | tail ] = terms
-    response = find_common_word(term)
-    cond do
-      response ->
-        response
-      true ->
-        find_inner_word(tail)
-    end
-  end
-
-  def node_siblings(word_node, remainder) do
-    [left, right] = String.split(remainder, word_node.remainder, parts: 2)
-
-    [node_from_remainder(left, word_node.depth), word_node, node_from_remainder(right, word_node.depth)]
-    |> Enum.filter(fn(child) -> child end)
-  end
-
-  def word_to_node(word) do
-    %WordNode{name: word.name, operator: nil, depth: 0, remainder: word.pronunciation, children: nil}
-  end
-
-  def word_to_node(word, depth) do
-    %WordNode{name: word.name, operator: nil, depth: depth, remainder: word.pronunciation, children: nil}
-  end
-
-  def node_from_remainder(value, depth) do
-    remainder = String.trim(value)
-    if String.length(remainder) > 0 do
-      word = find_common_word(remainder)
-      if word do
-        %WordNode{remainder: remainder, name: word.name, depth: depth}
-      else
-        %WordNode{remainder: remainder, children: children(remainder, depth + 1), operator: "+", depth: depth}
-      end
-    end
-  end
-
-  def find_common_word(pronunciation) do
-    Repo.all(
-      from word in Word,
-      where: word.pronunciation == ^pronunciation and word.has_image == true
-    )
-    |> word_response
-  end
-
-  def word_response([]) do nil end
-  def word_response(list) do
-    List.first(list)
   end
 end
