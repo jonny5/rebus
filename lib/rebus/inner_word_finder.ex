@@ -7,29 +7,37 @@ defmodule Rebus.InnerWordFinder do
   end
 
   def find_word(text) do
-    find_word(text, 0, [])
+    responses = all_words_in_text(%{remainder: text}) |>
+    Enum.map(fn word ->
+      [word] ++ all_words_in_text(word)
+    end)
   end
 
-  def find_word(text, index, words) do
-    IO.puts text
-    IO.puts index
+  def all_words_in_text(node) do
+    all_words_in_text(node, 0, [])
+  end
 
-
-    string_array = String.split(text)
+  def all_words_in_text(node, index, words) do
+    string_array = String.split(node.remainder)
     pronunciation_length = length(string_array)
-    IO.puts "LENGTHS"
-    IO.puts index
-    IO.puts pronunciation_length
-    if index + 1 < pronunciation_length do
-      found_word = word_from_pronunciation(text, index)
+
+    if index < pronunciation_length do
+      found_word = word_from_pronunciation(node.remainder, index)
 
       if found_word do
-        # remainder = string_array |> Enum.slice(index + 1..pronunciation_length) |> Enum.join(" ")
-        # IO.puts "REMAINDER"
-        # IO.puts remainder
-        find_word(text, index+1, words ++ [found_word])
+        remainder = string_array |> Enum.slice(index + 1..pronunciation_length) |> Enum.join(" ")
+
+        found_node =
+          case String.length(remainder) do
+            0 ->
+              %{remainder: remainder, word: found_word, final: true}
+            _ ->
+              %{remainder: remainder, word: found_word}
+          end
+
+        all_words_in_text(node, index+1, words ++ [found_node])
       else
-        find_word(text, index+1, words)
+        all_words_in_text(node, index+1, words)
       end
     else
       words
@@ -43,7 +51,6 @@ defmodule Rebus.InnerWordFinder do
   def word_from_pronunciation(pronunciation, index) when is_binary(pronunciation) do
     pronunciation |> String.split |> Enum.slice(0..index) |> Enum.join(" ") |> find_word_by_pronunciation
   end
-
 
   def find_word_by_pronunciation(pronunciation) do
     Rebus.Repo.one(
