@@ -3,21 +3,37 @@ defmodule Rebus.InnerWordFinder do
   alias Rebus.{Word, Repo, WordNode, StringSubsets}
 
   def process(text) do
-    text
+    word = find_word_by_name(text)
+    print_word_tree(word.pronunciation)
   end
 
-  def find_word(text) do
-    responses = all_words_in_text(%{remainder: text}) |>
-    Enum.map(fn word ->
-      [word] ++ all_words_in_text(word)
+  def print_word_tree(text) do
+    find_word(text) |> print_nodes
+  end
+
+  def print_nodes(nodes, val \\ []) do
+    Enum.map(nodes, fn(node) ->
+      print_node(node, val)
     end)
   end
 
-  def all_words_in_text(node) do
-    all_words_in_text(node, 0, [])
+  def print_node(node, val \\ []) do
+    if length(node.children) > 0 do
+      print_nodes(node.children, val ++ [node.word.name])
+    else
+      val ++ [node.word.name]
+    end
   end
 
-  def all_words_in_text(node, index, words) do
+  def find_word(text) do
+    inner_words_from_pronunciation(%{remainder: text})
+  end
+
+  def inner_words_from_pronunciation(node) do
+    inner_words_from_pronunciation(node, 0, [])
+  end
+
+  def inner_words_from_pronunciation(node, index, words) do
     string_array = String.split(node.remainder)
     pronunciation_length = length(string_array)
 
@@ -26,18 +42,17 @@ defmodule Rebus.InnerWordFinder do
 
       if found_word do
         remainder = string_array |> Enum.slice(index + 1..pronunciation_length) |> Enum.join(" ")
-
         found_node =
           case String.length(remainder) do
             0 ->
-              %{remainder: remainder, word: found_word, final: true}
+              %{remainder: remainder, word: found_word, children: []}
             _ ->
-              %{remainder: remainder, word: found_word}
+              %{remainder: remainder, word: found_word, children: find_word(remainder)}
           end
 
-        all_words_in_text(node, index+1, words ++ [found_node])
+        inner_words_from_pronunciation(node, index+1, words ++ [found_node])
       else
-        all_words_in_text(node, index+1, words)
+        inner_words_from_pronunciation(node, index+1, words)
       end
     else
       words
@@ -56,6 +71,14 @@ defmodule Rebus.InnerWordFinder do
     Rebus.Repo.one(
       from word in Word,
       where: word.pronunciation == ^pronunciation,
+      limit: 1
+    )
+  end
+
+  def find_word_by_name(name) do
+    Rebus.Repo.one(
+      from word in Word,
+      where: word.name == ^name,
       limit: 1
     )
   end
