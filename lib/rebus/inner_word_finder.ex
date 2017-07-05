@@ -8,20 +8,20 @@ defmodule Rebus.InnerWordFinder do
   end
 
   def print_word_tree(text) do
-    find_word(text) |> print_nodes
+    find_word(text) |> flatten_nodes
   end
 
-  def print_nodes(nodes, val \\ []) do
+  def flatten_nodes(nodes, val \\ []) do
     Enum.map(nodes, fn(node) ->
-      print_node(node, val)
+      flatten_node(node, val)
     end)
   end
 
-  def print_node(node, val \\ []) do
+  def flatten_node(node, val \\ []) do
     if length(node.children) > 0 do
-      print_nodes(node.children, val ++ [node.word.name])
+      flatten_nodes(node.children, val ++ [node.word])
     else
-      val ++ [node.word.name]
+      val ++ [node.word]
     end
   end
 
