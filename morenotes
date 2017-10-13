@@ -1,0 +1,24 @@
+1. Find words
+2. Find remainder
+
+
+
+1. Find all words in remainder -> Array
+
+
+
+1. Remainder
+2. Find word + remainder
+3. For each remainder find all words in the remainder + all the remainders
+
+
+def find_words(text)
+  # returns array of sub words + finds words for text of each remainder
+end
+
+[HEY, remainder: TEA, HAY, remainder: TEA, HATE: remainder: e]
+
+
+HAITI
+HEY remainder TEA
+HATE remainder E

@@ -7,4 +7,4 @@ word = Rebus.Repo.one(
   limit: 1
 )
 
-Rebus.InnerWordFinder.process(word) |> Rebus.WordNode.print
+Rebus.InnerWordFinder.process("haiti") |> Rebus.WordNode.print
