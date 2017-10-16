@@ -1,5 +1,6 @@
 defmodule Rebus.Word do
-  use Rebus.Web, :model
+  use Ecto.Schema
+  import Ecto.Changeset
 
   schema "words" do
     field :name, :string
